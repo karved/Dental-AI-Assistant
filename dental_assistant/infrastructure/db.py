@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Generator
 
+from dental_assistant.domain.constants import SLOT_DURATION_MINUTES, VALID_APPOINTMENT_TYPES
 from dental_assistant.settings import get_settings
 
 # ---------------------------------------------------------------------------
@@ -31,7 +32,9 @@ def connection(path: str | None = None) -> Generator[sqlite3.Connection, None, N
 # Schema
 # ---------------------------------------------------------------------------
 
-_SCHEMA = """
+_APPOINTMENT_TYPE_CHECK = ", ".join(f"'{appt_type}'" for appt_type in VALID_APPOINTMENT_TYPES)
+
+_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS patients (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
@@ -47,7 +50,7 @@ CREATE TABLE IF NOT EXISTS available_slots (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     date             TEXT    NOT NULL,
     time             TEXT    NOT NULL,
-    duration_minutes INTEGER NOT NULL DEFAULT 30,
+    duration_minutes INTEGER NOT NULL DEFAULT {SLOT_DURATION_MINUTES},
     is_available     INTEGER NOT NULL DEFAULT 1,
     UNIQUE(date, time)
 );
@@ -58,7 +61,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     patient_id        INTEGER NOT NULL,
     slot_id           INTEGER,
-    appointment_type  TEXT    NOT NULL DEFAULT 'checkup' CHECK(appointment_type IN ('cleaning', 'checkup', 'emergency', 'unknown')),
+    appointment_type  TEXT    NOT NULL DEFAULT 'checkup' CHECK(appointment_type IN ({_APPOINTMENT_TYPE_CHECK})),
     status            TEXT    NOT NULL DEFAULT 'confirmed' CHECK(status IN ('confirmed', 'cancelled')),
     is_emergency      INTEGER NOT NULL DEFAULT 0,
     emergency_summary TEXT,
