@@ -13,7 +13,7 @@ help:            ## Show this help
 install: sync    ## Alias for sync
 
 sync:            ## Install / sync all dependencies
-	uv sync
+	uv sync --extra dev
 
 dev: sync        ## Run FastAPI with hot-reload
 	uv run uvicorn dental_assistant.interfaces.api:app --reload --host 127.0.0.1 --port 8000
