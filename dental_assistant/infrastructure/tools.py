@@ -8,12 +8,16 @@ All SQL is delegated to the queries module (data access layer).
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+from difflib import get_close_matches
 from typing import Any
 
 from dental_assistant.domain.constants import VALID_APPOINTMENT_TYPES
 from dental_assistant.infrastructure import queries as q
 from dental_assistant.infrastructure.db import load_faq
+
+logger = logging.getLogger(__name__)
 
 # ── result helpers ──────────────────────────────────────────────────────────
 
@@ -167,20 +171,97 @@ def get_patient_appointments(
     return _ok(patient_name=patient["name"], appointments=appointments)
 
 # ── office info (FAQ) ───────────────────────────────────────────────────────
+#
+# Tiered resolution strategy (deterministic first, LLM fallback optional):
+#   Tier 1a: exact key lookup             (free, instant)
+#   Tier 1b: substring + prefix-stem match (free, instant)
+#   Tier 1c: difflib fuzzy match on keys  (free, instant)
+#   Tier 2:  LLM fallback                 (costs tokens, only when tiers 1a-1c fail)
+
+
+def _faq_keyword_match(faq: dict[str, Any], query: str) -> dict[str, Any] | None:
+    """Tier 1b: substring and prefix-stem matching against FAQ text."""
+    query_lower = query.lower().strip()
+    for key, entry in faq.items():
+        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")]).lower()
+        if query_lower in blob:
+            return {"key": key, **entry}
+    query_words = [w for w in query_lower.split() if len(w) > 2]
+    for key, entry in faq.items():
+        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")]).lower()
+        blob_words = blob.split()
+        for qw in query_words:
+            prefix = qw[:4] if len(qw) >= 4 else qw
+            if any(bw.startswith(prefix) for bw in blob_words):
+                return {"key": key, **entry}
+    return None
+
+
+def _faq_fuzzy_match(faq: dict[str, Any], query: str) -> dict[str, Any] | None:
+    """Tier 1c: fuzzy match query against FAQ keys using difflib."""
+    keys = list(faq.keys())
+    matches = get_close_matches(query.lower().strip(), keys, n=1, cutoff=0.5)
+    if matches:
+        entry = faq[matches[0]]
+        return {"key": matches[0], **entry}
+    return None
+
+
+def _faq_llm_fallback(topic: str, faq: dict[str, Any]) -> _Result | None:
+    """Tier 2: optional LLM fallback. Only called when deterministic tiers fail."""
+    try:
+        from dental_assistant.infrastructure.llm import call_llm
+        from dental_assistant.settings import get_settings
+
+        if not get_settings().llm_ready:
+            return None
+
+        faq_text = "\n".join(
+            f"- {entry.get('title', key)}: {entry.get('answer', '')}"
+            for key, entry in faq.items()
+        )
+        prompt = (
+            "You are a dental office assistant. A patient asked about a topic "
+            "that didn't match our FAQ exactly. Based on the FAQ below, give a "
+            "short 1-2 sentence answer. If the FAQ doesn't cover it, say so.\n\n"
+            f"FAQ:\n{faq_text}\n\n"
+            f"Patient asked about: {topic}"
+        )
+        answer = call_llm(prompt).strip()
+        return _ok(topic="llm_fallback", title="General inquiry", answer=answer, match_tier="llm")
+    except Exception:
+        logger.debug("FAQ LLM fallback failed for topic=%s", topic, exc_info=True)
+        return None
+
 
 def get_office_info(topic: str | None = None) -> _Result:
     faq = load_faq()
     if not faq:
         return _err("Office information is currently unavailable.")
-    if topic:
-        key = topic.lower().replace(" ", "_")
-        entry = faq.get(key)
-        if not entry:
-            available = [v.get("title", k) for k, v in faq.items()]
-            return _err(f"No info found for '{topic}'.", available_topics=available)
-        return _ok(topic=key, title=entry.get("title", key), answer=entry["answer"])
-    entries = {k: v.get("answer", "") for k, v in faq.items()}
-    return _ok(topics=entries)
+
+    if not topic:
+        entries = {k: v.get("answer", "") for k, v in faq.items()}
+        return _ok(topics=entries)
+
+    key = topic.lower().replace(" ", "_")
+    entry = faq.get(key)
+    if entry:
+        return _ok(topic=key, title=entry.get("title", key), answer=entry["answer"], match_tier="exact")
+
+    match = _faq_keyword_match(faq, topic)
+    if match:
+        return _ok(topic=match["key"], title=match.get("title", match["key"]), answer=match["answer"], match_tier="keyword")
+
+    match = _faq_fuzzy_match(faq, topic)
+    if match:
+        return _ok(topic=match["key"], title=match.get("title", match["key"]), answer=match["answer"], match_tier="fuzzy")
+
+    llm_result = _faq_llm_fallback(topic, faq)
+    if llm_result:
+        return llm_result
+
+    available = [v.get("title", k) for k, v in faq.items()]
+    return _err(f"No info found for '{topic}'.", available_topics=available)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Low-level helpers used by the engine (conversations / messages / feedback)

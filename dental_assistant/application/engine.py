@@ -45,6 +45,13 @@ from dental_assistant.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
+_emergency_logger = logging.getLogger("dental_assistant.emergency")
+if not _emergency_logger.handlers:
+    _eh = logging.FileHandler("emergency.log", encoding="utf-8")
+    _eh.setFormatter(logging.Formatter("%(asctime)s | %(message)s"))
+    _emergency_logger.addHandler(_eh)
+    _emergency_logger.setLevel(logging.WARNING)
+
 # ---------------------------------------------------------------------------
 # Safety layer
 # ---------------------------------------------------------------------------
@@ -275,7 +282,13 @@ def _route_emergency(state: TurnState, conn: Any) -> None:
         if result["ok"]:
             state.is_complete = True
 
-    logger.warning("EMERGENCY conversation_id=%s fields=%s", state.conversation_id, fields)
+    _emergency_logger.warning(
+        "conversation_id=%s | name=%s | phone=%s | summary=%s",
+        state.conversation_id,
+        state.patient.get("name", fields.get("name", "unknown")),
+        state.patient.get("phone", fields.get("phone", "unknown")),
+        fields.get("symptoms") or fields.get("notes") or "No details provided",
+    )
 
 
 def _route_family_book(state: TurnState, conn: Any) -> None:

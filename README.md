@@ -31,6 +31,19 @@ which checks whether the required fields for a given workflow have been collecte
 This ensures full control and testability of workflow transitions — the LLM
 classifies intent and extracts entities, but never decides what runs next.
 
+### FAQ resolution
+
+FAQ responses use a tiered strategy — deterministic matching first, optional
+LLM fallback only when needed:
+
+1. **Exact key** — direct lookup in `faq.json` (free, instant).
+2. **Keyword + prefix-stem** — substring and word-prefix matching against FAQ text (free, instant).
+3. **Fuzzy** — `difflib.get_close_matches` against FAQ keys (free, instant).
+4. **LLM fallback** — only if tiers 1–3 fail, sends FAQ context to the LLM for a flexible answer (costs tokens, optional).
+
+This balances cost efficiency with robustness: most queries resolve deterministically
+at zero cost, and the LLM is invoked only for genuinely ambiguous inputs.
+
 ### Database
 
 SQLite is used for development. All SQL lives in a single `queries.py` data-access
