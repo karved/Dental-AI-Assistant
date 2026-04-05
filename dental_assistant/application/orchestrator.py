@@ -28,10 +28,18 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
-def run_orchestrator(user_message: str, conversation_summary: str = "") -> OrchestratorOutput:
+def run_orchestrator(
+    user_message: str,
+    conversation_summary: str = "",
+    prior_structured_state: str = "",
+) -> OrchestratorOutput:
+    prior = prior_structured_state.strip() or "{}"
     prompt = f"""{ORCHESTRATOR_SYSTEM_PROMPT}
 
-Conversation context (may be empty):
+Prior structured state (JSON; system-confirmed carry-over, may be empty {{}}):
+{prior}
+
+Recent conversation (may be empty):
 {conversation_summary}
 
 User message:
