@@ -154,7 +154,7 @@ Using the Makefile:
 cp .env.template .env
 make sync
 make api
-make ui
+make ui   # separate terminal
 ```
 
 Useful commands:
@@ -169,7 +169,7 @@ If you prefer direct commands:
 ```bash
 uv sync --extra dev
 uv run python main.py
-uv run streamlit run app.py
+uv run streamlit run app.py   # separate terminal
 ```
 
 Set these environment variables in `.env` before running:

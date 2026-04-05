@@ -178,11 +178,15 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
-    { name = "pytest" },
     { name = "python-dotenv" },
-    { name = "ruff" },
     { name = "streamlit" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -190,12 +194,13 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "ruff", specifier = ">=0.11.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.0" },
     { name = "streamlit", specifier = ">=1.56.0" },
     { name = "uvicorn", specifier = ">=0.43.0" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "fastapi"
