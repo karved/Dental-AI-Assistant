@@ -282,14 +282,6 @@ def _route_emergency(state: TurnState, conn: Any) -> None:
         if result["ok"]:
             state.is_complete = True
 
-    _emergency_logger.warning(
-        "conversation_id=%s | name=%s | phone=%s | summary=%s",
-        state.conversation_id,
-        state.patient.get("name", fields.get("name", "unknown")),
-        state.patient.get("phone", fields.get("phone", "unknown")),
-        fields.get("symptoms") or fields.get("notes") or "No details provided",
-    )
-
 
 def _route_family_book(state: TurnState, conn: Any) -> None:
     fields = state.collected_fields
@@ -399,6 +391,7 @@ def process_message(
             rejected_slots=persisted.get("rejected_slots", []),
             workflow=persisted.get("workflow", "unknown"),
             is_emergency=persisted.get("is_emergency", False),
+            emergency_logged=persisted.get("emergency_logged", False),
         )
 
         if not settings.llm_ready:
@@ -426,6 +419,18 @@ def process_message(
         _merge_fields(state.collected_fields, orch.extracted_fields)
 
         _run_router(state, conn)
+
+        if state.is_emergency and state.is_complete and not state.emergency_logged:
+            _emergency_logger.warning(
+                "conversation_id=%s | name=%s | phone=%s | summary=%s",
+                state.conversation_id,
+                state.patient.get("name", state.collected_fields.get("name", "unknown")),
+                state.patient.get("phone", state.collected_fields.get("phone", "unknown")),
+                state.collected_fields.get("symptoms")
+                or state.collected_fields.get("notes")
+                or "No details provided",
+            )
+            state.emergency_logged = True
 
         payload = ConversationAgentInput(
             tone=state.tone,

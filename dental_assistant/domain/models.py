@@ -114,6 +114,7 @@ class TurnState(BaseModel):
 
     is_complete: bool = False
     is_emergency: bool = False
+    emergency_logged: bool = False
     tone: Tone = "default"
 
 # ---------------------------------------------------------------------------
