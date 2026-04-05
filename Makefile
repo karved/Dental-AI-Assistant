@@ -6,7 +6,6 @@ help:            ## Show this help
 	@echo   api          Run FastAPI (production)
 	@echo   ui           Run Streamlit UI
 	@echo   test         Run deterministic test suite
-	@echo   smoke        Alias for test
 	@echo   lint         Run ruff linter
 	@echo   clean        Remove build artifacts and caches
 	@echo   reset-db     Delete and recreate the database
@@ -27,8 +26,6 @@ ui:              ## Run Streamlit UI
 
 test:            ## Run deterministic test suite
 	uv run python -m pytest tests/ -v
-
-smoke: test      ## Alias for test
 
 lint:            ## Run ruff linter
 	uv run ruff check dental_assistant/
