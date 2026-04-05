@@ -80,19 +80,19 @@ This keeps prompts bounded, makes behavior more stable across long chats, and re
 
 ## Design + Stack
 
-- Deterministic routing over LLM-driven workflows
+- Deterministic routing over LLM-driven workflows  
   Booking, rescheduling, and cancellation have real side effects. Readiness checks, branching, and tool execution are implemented in Python so they remain testable and predictable.
 
-- File-based FAQ
+- File-based FAQ  
   FAQ content lives in JSON, so office staff could update common answers without changing application code or redeploying.
 
-- Type-agnostic slots
+- Type-agnostic slots  
   Slots are generic time blocks. Appointment type is attached at booking time, which keeps the scheduling model simple and flexible.
 
-- Provider-agnostic LLM wrapper
+- Provider-agnostic LLM wrapper  
   The workflow layer does not depend on one model vendor. The current project supports provider switching and is configured to work with `gpt-5.4-mini`.
 
-- Modular workflow shape
+- Modular workflow shape  
   Workflows already follow a clear pattern: collect fields, determine readiness, route deterministically, execute tools, and generate a reply. That makes it straightforward to add new scenarios tomorrow without changing the core control model.
 - Stack
   `FastAPI`, `Streamlit`, `SQLite`, `Pydantic`, and `gpt-5.4-mini`
