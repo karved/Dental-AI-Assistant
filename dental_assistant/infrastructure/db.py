@@ -35,7 +35,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS patients (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
-    phone       TEXT    NOT NULL UNIQUE,
+    phone       TEXT    NOT NULL UNIQUE CHECK(length(replace(replace(replace(phone, '-', ''), '(', ''), ')', '')) = 10),
     dob         TEXT,
     insurance   TEXT,
     created_at  TEXT    DEFAULT (datetime('now'))
@@ -96,10 +96,10 @@ CREATE TABLE IF NOT EXISTS feedback (
 # ---------------------------------------------------------------------------
 
 _SEED_PATIENTS = [
-    ("Sarah Johnson",  "555-0101", "1990-03-15", "Delta Dental PPO"),
-    ("Mike Chen",      "555-0102", "1985-08-22", "Cigna DHMO"),
-    ("Emily Davis",    "555-0103", "1978-12-01", None),
-    ("James Wilson",   "555-0104", "2000-06-10", "Aetna PPO"),
+    ("Sarah Johnson",  "555-010-1001", "1990-03-15", "Delta Dental PPO"),
+    ("Mike Chen",      "555-010-1002", "1985-08-22", "Cigna DHMO"),
+    ("Emily Davis",    "555-010-1003", "1978-12-01", None),
+    ("James Wilson",   "555-010-1004", "2000-06-10", "Aetna PPO"),
 ]
 
 def _generate_slot_rows(weeks: int = 2) -> list[tuple[str, str, int]]:

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from dental_assistant.application.conversation import generate_reply
@@ -44,6 +45,13 @@ from dental_assistant.infrastructure.tools import save_message
 from dental_assistant.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+_SENSITIVE_PATTERNS = re.compile(r"(key|token|secret|password)=\S+", re.IGNORECASE)
+
+
+def _sanitize_error(msg: str) -> str:
+    """Strip API keys and tokens from error messages before persisting."""
+    return _SENSITIVE_PATTERNS.sub(r"\1=***", msg)
 
 _emergency_logger = logging.getLogger("dental_assistant.emergency")
 if not _emergency_logger.handlers:
@@ -409,7 +417,7 @@ def process_message(
         except Exception as exc:
             logger.exception("Orchestrator failed")
             orch = OrchestratorOutput()
-            state.orchestrator_output["error"] = str(exc)
+            state.orchestrator_output["error"] = _sanitize_error(str(exc))
 
         state.orchestrator_output = orch.model_dump()
         if state.workflow == "unknown" or orch.intent != "unknown":
@@ -448,7 +456,7 @@ def process_message(
         except Exception as exc:
             logger.exception("Conversation agent failed")
             reply = "Sorry, something went wrong generating a reply. Please try again."
-            state.orchestrator_output["conversation_error"] = str(exc)
+            state.orchestrator_output["conversation_error"] = _sanitize_error(str(exc))
 
         meta = {"turn_state": state.model_dump()}
         save_message(conn, cid, "assistant", reply, json.dumps(meta))

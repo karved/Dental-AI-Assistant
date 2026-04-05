@@ -28,6 +28,7 @@ Rules:
 - If the user expresses pain, bleeding, swelling, or broken tooth -> intent "emergency", tone "emergency".
 - If the user asks about hours, location, insurance, pricing -> intent "faq".
 - Only include fields the user actually provided. Do not guess or hallucinate values.
+- For phone numbers, extract the raw digits/text exactly as the user said. Do not reformat.
 - If the user says times don't work or rejects offered slots, set intent to the current workflow (book_new/reschedule) and add "slots_rejected": true to extracted_fields.
 - For vague dates like "next week", "early next month", pass them as-is in date_preference. Do not convert.
 - Do NOT decide what questions to ask or what actions to take. Only classify and extract.

@@ -9,11 +9,12 @@ All SQL is delegated to the queries module (data access layer).
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from difflib import get_close_matches
 from typing import Any
 
-from dental_assistant.domain.constants import VALID_APPOINTMENT_TYPES
+from dental_assistant.domain.constants import PHONE_DIGIT_LENGTH, VALID_APPOINTMENT_TYPES
 from dental_assistant.infrastructure import queries as q
 from dental_assistant.infrastructure.db import load_faq
 
@@ -41,14 +42,32 @@ def _err(message: str, **extra: Any) -> _Result:
 # Public tool API
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ── phone normalization ─────────────────────────────────────────────────────
+
+def normalize_phone(raw: str) -> tuple[str | None, str | None]:
+    """Strip non-digits, validate length, format as XXX-XXX-XXXX.
+
+    Returns (formatted_phone, error_message). Exactly one is None.
+    """
+    if not raw or not raw.strip():
+        return None, "Phone number is required."
+    digits = re.sub(r"\D", "", raw.strip())
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != PHONE_DIGIT_LENGTH:
+        return None, f"Phone number must be {PHONE_DIGIT_LENGTH} digits (got {len(digits)})."
+    formatted = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    return formatted, None
+
 # ── patients ────────────────────────────────────────────────────────────────
 
 def lookup_patient(conn: sqlite3.Connection, phone: str) -> _Result:
-    if not phone or not phone.strip():
-        return _err("Phone number is required.")
-    row = q.find_patient_by_phone(conn, phone.strip())
+    normalized, err = normalize_phone(phone)
+    if err:
+        return _err(err)
+    row = q.find_patient_by_phone(conn, normalized)
     if not row:
-        return _err("No patient found with that phone number.", phone=phone)
+        return _err("No patient found with that phone number.", phone=normalized)
     return _ok(patient=row)
 
 
@@ -61,12 +80,13 @@ def register_patient(
 ) -> _Result:
     if not name or not name.strip():
         return _err("Patient name is required.")
-    if not phone or not phone.strip():
-        return _err("Phone number is required.")
-    existing = q.find_patient_by_phone(conn, phone.strip())
+    normalized, err = normalize_phone(phone)
+    if err:
+        return _err(err)
+    existing = q.find_patient_by_phone(conn, normalized)
     if existing:
         return _err("A patient with this phone number already exists.", patient_id=existing["id"])
-    pid = q.insert_patient(conn, name.strip(), phone.strip(), dob, insurance)
+    pid = q.insert_patient(conn, name.strip(), normalized, dob, insurance)
     patient = q.find_patient_by_id(conn, pid)
     return _ok(patient=patient)
 
