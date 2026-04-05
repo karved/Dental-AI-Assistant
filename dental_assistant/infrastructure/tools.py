@@ -11,14 +11,13 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from dental_assistant.domain.constants import VALID_APPOINTMENT_TYPES
 from dental_assistant.infrastructure import queries as q
 from dental_assistant.infrastructure.db import load_faq
 
 # ── result helpers ──────────────────────────────────────────────────────────
 
 _Result = dict[str, Any]
-
-_VALID_APPOINTMENT_TYPES = ("cleaning", "checkup", "emergency", "unknown")
 
 
 def _ok(data: dict[str, Any] | None = None, **extra: Any) -> _Result:
@@ -96,7 +95,7 @@ def book_appointment(
         return _err("Slot not found.", slot_id=slot_id)
     if not slot["is_available"]:
         return _err("That time slot is already booked.", slot_id=slot_id, date=slot["date"], time=slot["time"])
-    if appointment_type not in _VALID_APPOINTMENT_TYPES:
+    if appointment_type not in VALID_APPOINTMENT_TYPES:
         return _err(f"Invalid appointment type: {appointment_type}")
     conn.execute("SAVEPOINT book_appt")
     try:

@@ -1,28 +1,35 @@
-"""LLM #2: natural language from structured facts only. No routing decisions."""
+"""LLM #2: natural language generation from structured state only.
+
+This module does NOT make routing decisions, call tools, or modify state.
+It receives a ConversationAgentInput and returns a human-readable reply.
+"""
 
 from __future__ import annotations
 
 import json
 
 from dental_assistant.domain.models import ConversationAgentInput
+from dental_assistant.domain.prompts import CONVERSATION_SYSTEM_PROMPT
 from dental_assistant.infrastructure.llm import call_llm
 
 
 def generate_reply(payload: ConversationAgentInput) -> str:
-    blob = {
+    context = {
         "tone": payload.tone,
-        "facts": payload.facts,
-        "assistant_goal": payload.assistant_goal,
+        "workflow": payload.workflow,
+        "patient": payload.patient,
+        "collected_fields": payload.collected_fields,
+        "tool_results": payload.tool_results,
+        "questions_to_ask": payload.questions_to_ask,
+        "is_complete": payload.is_complete,
+        "is_emergency": payload.is_emergency,
     }
-    prompt = f"""You are the voice of a dental practice front desk.
-Write a short reply (1-3 sentences). Match the tone hint. Use only the facts given; do not invent policies, times, or prices.
-If facts are empty, ask one clarifying question or give a minimal acknowledgment.
+    prompt = f"""{CONVERSATION_SYSTEM_PROMPT}
 
-Tone: {payload.tone}
-Structured context (JSON):
-{json.dumps(blob, ensure_ascii=False)}
+Structured context:
+{json.dumps(context, ensure_ascii=False, indent=2)}
 
-Latest user message:
-{payload.user_message}
-"""
+User message:
+{payload.user_message}"""
+
     return call_llm(prompt).strip()

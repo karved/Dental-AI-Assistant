@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
-# Domain entities (input — no system-generated fields like id / created_at)
+# Domain entities (input -- no system-generated fields like id / created_at)
 # ---------------------------------------------------------------------------
 
 class Patient(BaseModel):
@@ -85,21 +85,67 @@ class FeedbackResponse(BaseModel):
     rating: int
 
 # ---------------------------------------------------------------------------
-# LLM structured I/O
+# Turn state -- single object that flows through the deterministic pipeline
+# ---------------------------------------------------------------------------
+
+Intent = Literal[
+    "book_new", "reschedule", "cancel", "family_book",
+    "emergency", "faq", "general", "unknown",
+]
+
+Tone = Literal["default", "emergency", "calm", "friendly"]
+
+
+class TurnState(BaseModel):
+    """Mutable state for one conversation turn. Flows: engine -> router -> tools -> conversation agent."""
+
+    conversation_id: int
+    user_message: str
+
+    workflow: Intent = "unknown"
+    patient: dict[str, Any] = Field(default_factory=dict)
+    family_members: list[dict[str, Any]] = Field(default_factory=list)
+
+    collected_fields: dict[str, Any] = Field(default_factory=dict)
+    orchestrator_output: dict[str, Any] = Field(default_factory=dict)
+    tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    questions_to_ask: list[str] = Field(default_factory=list)
+    rejected_slots: list[int] = Field(default_factory=list)
+
+    is_complete: bool = False
+    is_emergency: bool = False
+    tone: Tone = "default"
+
+# ---------------------------------------------------------------------------
+# LLM #1 -- Orchestrator structured output
 # ---------------------------------------------------------------------------
 
 class OrchestratorOutput(BaseModel):
-    """Structured output from LLM #1 (orchestrator). JSON only, no user-facing text."""
+    """Strict JSON returned by the orchestrator LLM. No prose.
 
-    intent: str = "unknown"
-    entities: dict[str, Any] = Field(default_factory=dict)
+    The orchestrator ONLY classifies intent and extracts fields.
+    It does NOT decide routing, questions, or actions -- that is the
+    deterministic Python layer's job.
+    """
+
+    intent: Intent = "unknown"
+    extracted_fields: dict[str, Any] = Field(default_factory=dict)
+    tone: Tone = "default"
     confidence: float | None = None
 
+# ---------------------------------------------------------------------------
+# LLM #2 -- Conversation agent input
+# ---------------------------------------------------------------------------
 
 class ConversationAgentInput(BaseModel):
-    """Structured payload passed to LLM #2 (conversation agent)."""
+    """Structured payload passed to the conversation agent LLM."""
 
-    tone: Literal["default", "emergency", "calm"] = "default"
-    facts: dict[str, Any] = Field(default_factory=dict)
-    assistant_goal: str = ""
+    tone: Tone = "default"
+    workflow: str = "unknown"
+    patient: dict[str, Any] = Field(default_factory=dict)
+    collected_fields: dict[str, Any] = Field(default_factory=dict)
+    tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    questions_to_ask: list[str] = Field(default_factory=list)
+    is_complete: bool = False
+    is_emergency: bool = False
     user_message: str = ""
