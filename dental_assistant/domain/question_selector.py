@@ -1,13 +1,14 @@
 """Deterministic next-question selection. No LLM calls.
 
 Field collection order per workflow:
-  book_new:     name -> phone -> date_preference -> appointment_type
-  reschedule:   phone -> date_preference
-  cancel:       phone
-  family_book:  name -> phone -> family_size -> date_preference
-  emergency:    (symptoms clarification)
-  faq:          faq_topic
-  general:      (open-ended prompt)
+  book_new:            name -> phone -> dob/insurance (skipped if on file) -> date_preference -> appointment_type
+  reschedule:          phone -> date_preference
+  cancel:              phone
+  appointment_status:  phone (lookup by phone; no DOB required)
+  family_book:         name -> phone -> family_size -> date_preference
+  emergency:           (symptoms clarification)
+  faq:                 faq_topic
+  general:             (open-ended prompt)
 """
 
 from __future__ import annotations

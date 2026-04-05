@@ -1,26 +1,37 @@
 {
   "hours": {
     "title": "Office hours",
-    "answer": "We're open 8:00 AM to 6:00 PM, Monday through Saturday. We're closed Sundays."
+    "keywords": ["timings", "timing", "schedule", "open", "close", "when"],
+    "answer": "We're open 8:00 AM to 6:00 PM US Pacific Time, Monday through Saturday. We're closed Sundays."
   },
   "location": {
     "title": "Location",
+    "keywords": ["address", "where", "directions", "parking"],
     "answer": "Our practice is at 123 Smile Street, Suite 200. Free parking is available in the lot behind the building."
   },
   "insurance": {
     "title": "Insurance",
-    "answer": "We accept most major PPO plans. Bring your insurance card to your visit; we can verify benefits before treatment when possible."
+    "keywords": ["coverage", "plan", "plans", "dental plan"],
+    "answer": "We accept all major dental insurance plans including PPO, HMO, and DHMO. Bring your insurance card to your visit; we can verify benefits before treatment."
   },
   "self_pay": {
     "title": "Self-pay / no insurance",
-    "answer": "We offer transparent pricing for self-pay patients and can discuss payment options at booking or check-in."
+    "keywords": ["no insurance", "uninsured", "cash", "out of pocket", "cost", "pricing", "price"],
+    "answer": "For patients without insurance, we offer self-pay options with transparent pricing. We also have membership plans and financing options to help make care affordable."
+  },
+  "payment": {
+    "title": "Payment & financing",
+    "keywords": ["membership", "financing", "payment plan", "pay", "finance"],
+    "answer": "We accept cash, card, and most insurance. For larger treatments, we offer monthly financing plans and an in-house membership program for uninsured patients that covers preventive visits at a flat annual rate."
   },
   "appointments": {
     "title": "Appointments",
+    "keywords": ["book", "booking", "visit"],
     "answer": "We recommend booking in advance, but we do our best to accommodate same-day or urgent visits when possible."
   },
   "emergency": {
     "title": "Emergency care",
-    "answer": "If you're experiencing a dental emergency, we’ll prioritize getting you seen as soon as possible. Please let us know what’s going on."
+    "keywords": ["urgent", "pain", "broken tooth", "swelling"],
+    "answer": "If you're experiencing a dental emergency, we'll prioritize getting you seen as soon as possible. Please let us know what's going on so we can help."
   }
 }

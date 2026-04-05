@@ -90,7 +90,8 @@ class FeedbackResponse(BaseModel):
 
 Intent = Literal[
     "book_new", "reschedule", "cancel", "family_book",
-    "emergency", "faq", "general", "unknown",
+    "emergency", "faq", "appointment_status",
+    "general", "unknown",
 ]
 
 Tone = Literal["default", "emergency", "calm", "friendly"]
@@ -109,8 +110,14 @@ class TurnState(BaseModel):
     collected_fields: dict[str, Any] = Field(default_factory=dict)
     orchestrator_output: dict[str, Any] = Field(default_factory=dict)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    prior_tool_results: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
     questions_to_ask: list[str] = Field(default_factory=list)
     rejected_slots: list[int] = Field(default_factory=list)
+
+    offered_slot_ids: list[int] = Field(default_factory=list)
+    slots_offered_for_date: str | None = None
+    pending_family_size: int | None = None
+    offered_appointment_ids: list[int] = Field(default_factory=list)
 
     is_complete: bool = False
     is_emergency: bool = False
@@ -132,7 +139,6 @@ class OrchestratorOutput(BaseModel):
     intent: Intent = "unknown"
     extracted_fields: dict[str, Any] = Field(default_factory=dict)
     tone: Tone = "default"
-    confidence: float | None = None
 
 # ---------------------------------------------------------------------------
 # LLM #2 -- Conversation agent input

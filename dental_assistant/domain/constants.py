@@ -36,6 +36,7 @@ READINESS_RULES: dict[str, set[str]] = {
     "book_new":    {"name", "phone", "date_preference"},
     "reschedule":  {"phone"},
     "cancel":      {"phone"},
+    "appointment_status": {"phone"},
     "family_book": {"name", "phone", "family_size", "date_preference"},
     "emergency":   set(),
     "faq":         set(),
@@ -55,12 +56,18 @@ FIELD_QUESTIONS: dict[str, str] = {
     "appointment_type": "What type of visit do you need -- a cleaning, checkup, or something else?",
     "family_size":      "How many family members need appointments?",
     "faq_topic":        "Are you asking about our hours, location, insurance, or pricing?",
+    "slot_choice":      "Which of the available times would you like? You can say the time (e.g. 2 PM) or pick from the list.",
+    "appointment_choice": (
+        "Which appointment do you mean? You can give the appointment ID from the list, say first or second, "
+        "or describe the date and time (all times are US Pacific)."
+    ),
 }
 
 WORKFLOW_FIELDS: dict[str, list[str]] = {
-    "book_new":     ["name", "phone", "date_preference", "appointment_type"],
+    "book_new":     ["name", "phone", "dob", "insurance", "date_preference", "appointment_type"],
     "reschedule":   ["phone", "date_preference"],
     "cancel":       ["phone"],
+    "appointment_status": ["phone"],
     "family_book":  ["name", "phone", "family_size", "date_preference"],
     "emergency":    [],
     "faq":          ["faq_topic"],

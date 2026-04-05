@@ -200,15 +200,22 @@ def get_patient_appointments(
 
 
 def _faq_keyword_match(faq: dict[str, Any], query: str) -> dict[str, Any] | None:
-    """Tier 1b: substring and prefix-stem matching against FAQ text."""
+    """Tier 1b: substring, explicit keywords, and prefix-stem matching against FAQ text."""
     query_lower = query.lower().strip()
+
     for key, entry in faq.items():
-        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")]).lower()
+        explicit_keywords = [k.lower() for k in entry.get("keywords", [])]
+        if query_lower in explicit_keywords:
+            return {"key": key, **entry}
+
+    for key, entry in faq.items():
+        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")] + entry.get("keywords", [])).lower()
         if query_lower in blob:
             return {"key": key, **entry}
+
     query_words = [w for w in query_lower.split() if len(w) > 2]
     for key, entry in faq.items():
-        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")]).lower()
+        blob = " ".join([key, entry.get("title", ""), entry.get("answer", "")] + entry.get("keywords", [])).lower()
         blob_words = blob.split()
         for qw in query_words:
             prefix = qw[:4] if len(qw) >= 4 else qw
@@ -286,10 +293,6 @@ def get_office_info(topic: str | None = None) -> _Result:
 # ═══════════════════════════════════════════════════════════════════════════
 # Low-level helpers used by the engine (conversations / messages / feedback)
 # ═══════════════════════════════════════════════════════════════════════════
-
-def create_conversation(conn: sqlite3.Connection) -> int:
-    return q.insert_conversation(conn)
-
 
 def save_message(
     conn: sqlite3.Connection,

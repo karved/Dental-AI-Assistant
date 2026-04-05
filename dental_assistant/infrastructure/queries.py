@@ -52,6 +52,16 @@ def find_slot_by_id(conn: sqlite3.Connection, slot_id: int) -> _Row | None:
     return dict(row) if row else None
 
 
+def find_available_slot_at_time(conn: sqlite3.Connection, date: str, time_hhmm: str) -> _Row | None:
+    """Return one open slot row for exact calendar date and start time (HH:MM), or None."""
+    row = conn.execute(
+        "SELECT id, date, time, duration_minutes FROM available_slots "
+        "WHERE is_available = 1 AND date = ? AND time = ?",
+        (date, time_hhmm),
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def update_slot_availability(conn: sqlite3.Connection, slot_id: int, available: bool) -> None:
     conn.execute("UPDATE available_slots SET is_available = ? WHERE id = ?", (int(available), slot_id))
 

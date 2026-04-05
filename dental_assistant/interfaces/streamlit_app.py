@@ -101,6 +101,13 @@ def run() -> None:
         st.rerun()
 
     with st.sidebar:
+        if st.button("🔄 New conversation"):
+            st.session_state.conversation_id = None
+            st.session_state.messages = []
+            st.session_state.feedback_given = False
+            st.session_state.last_meta = None
+            st.rerun()
+
         st.subheader("Session")
         st.text(f"Conversation: {st.session_state.conversation_id or '—'}")
 
@@ -119,13 +126,6 @@ def run() -> None:
             if patient:
                 st.subheader("Patient")
                 st.json(patient)
-
-        if st.button("🔄 New conversation"):
-            st.session_state.conversation_id = None
-            st.session_state.messages = []
-            st.session_state.feedback_given = False
-            st.session_state.last_meta = None
-            st.rerun()
 
         with st.expander("Raw metadata"):
             st.json(st.session_state.last_meta or {})

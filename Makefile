@@ -1,11 +1,12 @@
-.PHONY: install sync dev api ui lint clean reset-db smoke help
+.PHONY: install sync dev api ui lint clean reset-db test smoke help
 
 help:            ## Show this help
 	@echo   sync         Install / sync all dependencies
 	@echo   dev          Run FastAPI with hot-reload
 	@echo   api          Run FastAPI (production)
 	@echo   ui           Run Streamlit UI
-	@echo   smoke        Run quick smoke tests
+	@echo   test         Run deterministic test suite
+	@echo   smoke        Alias for test
 	@echo   lint         Run ruff linter
 	@echo   clean        Remove build artifacts and caches
 	@echo   reset-db     Delete and recreate the database
@@ -24,8 +25,10 @@ api:             ## Run FastAPI (production)
 ui:              ## Run Streamlit UI
 	uv run streamlit run app.py
 
-smoke:           ## Run quick smoke tests
-	uv run python -c "from dental_assistant.infrastructure.db import init_db; init_db(); from dental_assistant.application.engine import _is_ready, _keyword_safety_check; from dental_assistant.domain.question_selector import select_questions; from dental_assistant.domain.date_resolver import resolve_date; from dental_assistant.infrastructure.tools import get_office_info; assert _keyword_safety_check('hello') is None; assert _keyword_safety_check('kill myself') is not None; assert _is_ready('book_new', {'name':'A','phone':'5','date_preference':'x'}); assert not _is_ready('book_new', {}); assert len(select_questions('book_new', {})) == 2; assert resolve_date('next week') is not None; assert get_office_info('hours')['ok']; print('All smoke tests passed.')"
+test:            ## Run deterministic test suite
+	uv run python -m pytest tests/ -v
+
+smoke: test      ## Alias for test
 
 lint:            ## Run ruff linter
 	uv run ruff check dental_assistant/

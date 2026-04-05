@@ -44,6 +44,21 @@ LLM fallback only when needed:
 This balances cost efficiency with robustness: most queries resolve deterministically
 at zero cost, and the LLM is invoked only for genuinely ambiguous inputs.
 
+### Timezone
+
+Vague dates (`today`, `tonight`, `tomorrow`) and the **after 6 PM PT** same-day
+booking rule use **US Pacific** (`America/Los_Angeles` by default). Override with
+`DISPLAY_TIMEZONE` in `.env` if needed. The conversation agent is instructed to
+phrase all times in Pacific.
+
+### Family / household
+
+Family visits book multiple slots on one account (same `patient_id`). Optional
+names for spouse or children can live in orchestrator `extracted_fields` (e.g.
+`family_member_names`) for a nicer transcript; the take-home schema does not
+require separate patient rows. Production systems often model **households** or
+link dependent patients for billing and records.
+
 ### Known limitations / future improvements
 
 - **Multi-action conversations** — once a workflow completes (`is_complete`), the
@@ -54,9 +69,6 @@ at zero cost, and the LLM is invoked only for genuinely ambiguous inputs.
 - **Session timeout** — there is no idle-timeout or session expiry. A production
   system would expire conversations after inactivity and flush any pending
   emergency logs as a safety net.
-- **Appointment selection** — when a patient has multiple active appointments,
-  the system currently acts on the first one. A production version would present
-  a disambiguation step ("Which appointment — Tuesday at 9 AM or Thursday at 2 PM?").
 
 ### Database
 
