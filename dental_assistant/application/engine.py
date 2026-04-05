@@ -1,9 +1,12 @@
-"""Deterministic pipeline: safety → orchestrator → tools/question selection → conversation agent."""
+"""Deterministic pipeline: safety -> orchestrator -> tools/question selection -> conversation agent.
+
+This module contains zero SQL. All data access is delegated to the
+infrastructure layer (queries / tools).
+"""
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from typing import Any
 
 from dental_assistant.application.conversation import generate_reply
@@ -11,6 +14,7 @@ from dental_assistant.application.orchestrator import run_orchestrator
 from dental_assistant.domain.models import ConversationAgentInput, OrchestratorOutput
 from dental_assistant.domain.question_selector import select_questions
 from dental_assistant.infrastructure import db as db_mod
+from dental_assistant.infrastructure import queries as q
 from dental_assistant.infrastructure.tools import save_message
 from dental_assistant.settings import get_settings
 
@@ -19,7 +23,6 @@ from dental_assistant.settings import get_settings
 # ---------------------------------------------------------------------------
 
 def _keyword_safety_check(text: str) -> str | None:
-    """Return a blocked message if a rule matches; else None."""
     lowered = text.lower()
     blocked_phrases = ("suicide", "kill myself", "self-harm")
     if any(p in lowered for p in blocked_phrases):
@@ -27,7 +30,7 @@ def _keyword_safety_check(text: str) -> str | None:
     return None
 
 # ---------------------------------------------------------------------------
-# State helpers — derived from messages.metadata_json (single source of truth)
+# State helpers
 # ---------------------------------------------------------------------------
 
 def _merge_entities_into_state(state: dict[str, Any], entities: dict[str, Any]) -> None:
@@ -36,39 +39,27 @@ def _merge_entities_into_state(state: dict[str, Any], entities: dict[str, Any]) 
             state[k] = v
 
 
-def _load_state(conn: sqlite3.Connection, conversation_id: int) -> dict[str, Any]:
+def _load_state(conn, conversation_id: int) -> dict[str, Any]:
     """Reconstruct accumulated state from the latest assistant message's metadata."""
-    row = conn.execute(
-        "SELECT metadata_json FROM messages "
-        "WHERE conversation_id = ? AND role = 'assistant' AND metadata_json IS NOT NULL "
-        "ORDER BY id DESC LIMIT 1",
-        (conversation_id,),
-    ).fetchone()
-    if not row:
+    raw = q.find_latest_assistant_metadata(conn, conversation_id)
+    if not raw:
         return {}
     try:
-        meta = json.loads(row["metadata_json"] or "{}")
-        return meta.get("state", {})
+        return json.loads(raw).get("state", {})
     except (json.JSONDecodeError, TypeError):
         return {}
 
 
-def _recent_summary(conn: sqlite3.Connection, conversation_id: int, limit: int = 6) -> str:
-    rows = conn.execute(
-        "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ?",
-        (conversation_id, limit),
-    ).fetchall()
-    lines = [f"{r['role']}: {r['content']}" for r in reversed(list(rows))]
+def _recent_summary(conn, conversation_id: int, limit: int = 6) -> str:
+    rows = q.find_recent_messages(conn, conversation_id, limit)
+    lines = [f"{r['role']}: {r['content']}" for r in reversed(rows)]
     return "\n".join(lines)
 
 
-def ensure_conversation(conn: sqlite3.Connection, conversation_id: int | None) -> int:
-    if conversation_id:
-        row = conn.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
-        if row:
-            return conversation_id
-    cur = conn.execute("INSERT INTO conversations DEFAULT VALUES")
-    return int(cur.lastrowid)
+def _ensure_conversation(conn, conversation_id: int | None) -> int:
+    if conversation_id and q.find_conversation_by_id(conn, conversation_id):
+        return conversation_id
+    return q.insert_conversation(conn)
 
 # ---------------------------------------------------------------------------
 # Main turn handler
@@ -88,7 +79,7 @@ def process_message(
 
     blocked = _keyword_safety_check(user_message)
     with db_mod.connection(db_path) as conn:
-        cid = ensure_conversation(conn, conversation_id)
+        cid = _ensure_conversation(conn, conversation_id)
         save_message(conn, cid, "user", user_message)
 
         if blocked:
