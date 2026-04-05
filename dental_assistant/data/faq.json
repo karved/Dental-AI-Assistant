@@ -1,0 +1,26 @@
+{
+  "hours": {
+    "title": "Office hours",
+    "answer": "We're open 8:00 AM to 6:00 PM, Monday through Saturday. We're closed Sundays."
+  },
+  "location": {
+    "title": "Location",
+    "answer": "Our practice is at 123 Smile Street, Suite 200. Free parking is available in the lot behind the building."
+  },
+  "insurance": {
+    "title": "Insurance",
+    "answer": "We accept most major PPO plans. Bring your insurance card to your visit; we can verify benefits before treatment when possible."
+  },
+  "self_pay": {
+    "title": "Self-pay / no insurance",
+    "answer": "We offer transparent pricing for self-pay patients and can discuss payment options at booking or check-in."
+  },
+  "appointments": {
+    "title": "Appointments",
+    "answer": "We recommend booking in advance, but we do our best to accommodate same-day or urgent visits when possible."
+  },
+  "emergency": {
+    "title": "Emergency care",
+    "answer": "If you're experiencing a dental emergency, we’ll prioritize getting you seen as soon as possible. Please let us know what’s going on."
+  }
+}
