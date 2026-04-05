@@ -9,6 +9,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from dental_assistant.domain.constants import ORCHESTRATOR_RECENT_MESSAGES
+
 _Row = dict[str, Any]
 
 # ---------------------------------------------------------------------------
@@ -36,12 +38,25 @@ def insert_patient(conn: sqlite3.Connection, name: str, phone: str, dob: str | N
 # Slots
 # ---------------------------------------------------------------------------
 
-def find_available_slots(conn: sqlite3.Connection, date_filter: str | None = None, limit: int = 10) -> list[_Row]:
+def find_available_slots(
+    conn: sqlite3.Connection,
+    date_filter: str | None = None,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 10,
+) -> list[_Row]:
     sql = "SELECT id, date, time, duration_minutes FROM available_slots WHERE is_available = 1"
     params: list[Any] = []
     if date_filter:
         sql += " AND date = ?"
         params.append(date_filter)
+    if date_from:
+        sql += " AND date >= ?"
+        params.append(date_from)
+    if date_to:
+        sql += " AND date <= ?"
+        params.append(date_to)
     sql += " ORDER BY date, time LIMIT ?"
     params.append(limit)
     return [dict(r) for r in conn.execute(sql, params).fetchall()]
@@ -76,12 +91,13 @@ def insert_appointment(
     appointment_type: str,
     is_emergency: bool,
     emergency_summary: str | None,
+    visit_notes: str | None = None,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO appointments
-           (patient_id, slot_id, appointment_type, is_emergency, emergency_summary)
-           VALUES (?, ?, ?, ?, ?)""",
-        (patient_id, slot_id, appointment_type, int(is_emergency), emergency_summary),
+           (patient_id, slot_id, appointment_type, is_emergency, emergency_summary, visit_notes, modified_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+        (patient_id, slot_id, appointment_type, int(is_emergency), emergency_summary, visit_notes),
     )
     return int(cur.lastrowid)
 
@@ -108,7 +124,7 @@ def find_active_appointment(conn: sqlite3.Connection, appointment_id: int) -> _R
 
 def find_appointments_for_patient(conn: sqlite3.Connection, patient_id: int, status: str = "confirmed") -> list[_Row]:
     rows = conn.execute(
-        """SELECT a.id, a.appointment_type, a.status, a.is_emergency, s.date, s.time
+        """SELECT a.id, a.appointment_type, a.status, a.is_emergency, a.visit_notes, s.date, s.time
            FROM appointments a
            JOIN available_slots s ON a.slot_id = s.id
            WHERE a.patient_id = ? AND a.status = ?
@@ -119,11 +135,17 @@ def find_appointments_for_patient(conn: sqlite3.Connection, patient_id: int, sta
 
 
 def update_appointment_status(conn: sqlite3.Connection, appointment_id: int, status: str) -> None:
-    conn.execute("UPDATE appointments SET status = ? WHERE id = ?", (status, appointment_id))
+    conn.execute(
+        "UPDATE appointments SET status = ?, modified_at = datetime('now') WHERE id = ?",
+        (status, appointment_id),
+    )
 
 
 def update_appointment_slot(conn: sqlite3.Connection, appointment_id: int, new_slot_id: int) -> None:
-    conn.execute("UPDATE appointments SET slot_id = ? WHERE id = ?", (new_slot_id, appointment_id))
+    conn.execute(
+        "UPDATE appointments SET slot_id = ?, modified_at = datetime('now') WHERE id = ?",
+        (new_slot_id, appointment_id),
+    )
 
 # ---------------------------------------------------------------------------
 # Conversations
@@ -166,7 +188,11 @@ def find_latest_assistant_metadata(conn: sqlite3.Connection, conversation_id: in
     return row["metadata_json"] if row else None
 
 
-def find_recent_messages(conn: sqlite3.Connection, conversation_id: int, limit: int = 6) -> list[_Row]:
+def find_recent_messages(
+    conn: sqlite3.Connection,
+    conversation_id: int,
+    limit: int = ORCHESTRATOR_RECENT_MESSAGES,
+) -> list[_Row]:
     rows = conn.execute(
         "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ?",
         (conversation_id, limit),

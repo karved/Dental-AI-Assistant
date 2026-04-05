@@ -14,7 +14,12 @@ import sqlite3
 from difflib import get_close_matches
 from typing import Any
 
-from dental_assistant.domain.constants import PHONE_DIGIT_LENGTH, VALID_APPOINTMENT_TYPES
+from dental_assistant.domain.appointments import visit_summary_for_chat
+from dental_assistant.domain.constants import (
+    PHONE_DIGIT_LENGTH,
+    SLOT_SQL_FETCH_DEFAULT,
+    VALID_APPOINTMENT_TYPES,
+)
 from dental_assistant.infrastructure import queries as q
 from dental_assistant.infrastructure.db import load_faq
 
@@ -23,6 +28,18 @@ logger = logging.getLogger(__name__)
 # ── result helpers ──────────────────────────────────────────────────────────
 
 _Result = dict[str, Any]
+
+
+def _appointment_with_visit_summary(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Attach visit_summary for the LLM/UI. Not a DB column—derived from appointment_type + visit_notes."""
+    if row is None:
+        return None
+    d = dict(row)
+    d["visit_summary"] = visit_summary_for_chat(
+        str(d.get("appointment_type") or "unknown"),
+        d.get("visit_notes"),
+    )
+    return d
 
 
 def _ok(data: dict[str, Any] | None = None, **extra: Any) -> _Result:
@@ -95,11 +112,19 @@ def register_patient(
 def check_availability(
     conn: sqlite3.Connection,
     date_filter: str | None = None,
-    limit: int = 10,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = SLOT_SQL_FETCH_DEFAULT,
 ) -> _Result:
-    rows = q.find_available_slots(conn, date_filter=date_filter, limit=limit)
+    rows = q.find_available_slots(conn, date_filter=date_filter, date_from=date_from, date_to=date_to, limit=limit)
     if not rows:
-        return _err("No available slots found." + (f" (date={date_filter})" if date_filter else ""))
+        hint = ""
+        if date_filter:
+            hint = f" (date={date_filter})"
+        elif date_from or date_to:
+            hint = f" (range={date_from or '*'}..{date_to or '*'})"
+        return _err("No available slots found." + hint)
     return _ok(slots=rows)
 
 # ── appointments ────────────────────────────────────────────────────────────
@@ -111,6 +136,7 @@ def book_appointment(
     appointment_type: str = "checkup",
     is_emergency: bool = False,
     emergency_summary: str | None = None,
+    visit_notes: str | None = None,
 ) -> _Result:
     if not q.find_patient_by_id(conn, patient_id):
         return _err("Patient not found.", patient_id=patient_id)
@@ -121,15 +147,18 @@ def book_appointment(
         return _err("That time slot is already booked.", slot_id=slot_id, date=slot["date"], time=slot["time"])
     if appointment_type not in VALID_APPOINTMENT_TYPES:
         return _err(f"Invalid appointment type: {appointment_type}")
+    es = emergency_summary if is_emergency else None
     conn.execute("SAVEPOINT book_appt")
     try:
-        appt_id = q.insert_appointment(conn, patient_id, slot_id, appointment_type, is_emergency, emergency_summary)
+        appt_id = q.insert_appointment(
+            conn, patient_id, slot_id, appointment_type, is_emergency, es, visit_notes,
+        )
         q.update_slot_availability(conn, slot_id, available=False)
         conn.execute("RELEASE SAVEPOINT book_appt")
     except Exception:
         conn.execute("ROLLBACK TO SAVEPOINT book_appt")
         raise
-    appointment = q.find_appointment_with_slot(conn, appt_id)
+    appointment = _appointment_with_visit_summary(q.find_appointment_with_slot(conn, appt_id))
     return _ok(appointment=appointment)
 
 
@@ -153,12 +182,19 @@ def reschedule_appointment(
     except Exception:
         conn.execute("ROLLBACK TO SAVEPOINT reschedule_appt")
         raise
-    updated = q.find_appointment_with_slot(conn, appointment_id)
-    return _ok(
-        appointment=updated,
-        old_date=current["date"],
-        old_time=current["time"],
-    )
+    updated = _appointment_with_visit_summary(q.find_appointment_with_slot(conn, appointment_id))
+    patient = q.find_patient_by_id(conn, current["patient_id"])
+    out: dict[str, Any] = {
+        "appointment": updated,
+        "old_date": current["date"],
+        "old_time": current["time"],
+    }
+    if patient:
+        out["patient_name"] = patient.get("name")
+        ins = patient.get("insurance")
+        if ins and str(ins).strip():
+            out["insurance_on_file"] = ins
+    return _ok(**out)
 
 
 def cancel_appointment(conn: sqlite3.Connection, appointment_id: int) -> _Result:
@@ -173,12 +209,19 @@ def cancel_appointment(conn: sqlite3.Connection, appointment_id: int) -> _Result
     except Exception:
         conn.execute("ROLLBACK TO SAVEPOINT cancel_appt")
         raise
-    return _ok(
-        appointment_id=appointment_id,
-        date=current["date"],
-        time=current["time"],
-        appointment_type=current["appointment_type"],
-    )
+    patient = q.find_patient_by_id(conn, current["patient_id"])
+    out: dict[str, Any] = {
+        "appointment_id": appointment_id,
+        "date": current["date"],
+        "time": current["time"],
+        "appointment_type": current["appointment_type"],
+    }
+    if patient:
+        out["patient_name"] = patient.get("name")
+        ins = patient.get("insurance")
+        if ins and str(ins).strip():
+            out["insurance_on_file"] = ins
+    return _ok(**out)
 
 
 def get_patient_appointments(
@@ -187,8 +230,13 @@ def get_patient_appointments(
     patient = q.find_patient_by_id(conn, patient_id)
     if not patient:
         return _err("Patient not found.", patient_id=patient_id)
-    appointments = q.find_appointments_for_patient(conn, patient_id, status)
-    return _ok(patient_name=patient["name"], appointments=appointments)
+    raw = q.find_appointments_for_patient(conn, patient_id, status)
+    appointments = [_appointment_with_visit_summary(dict(a)) for a in raw]
+    out: dict[str, Any] = {"patient_name": patient["name"], "appointments": appointments}
+    ins = patient.get("insurance")
+    if ins and str(ins).strip():
+        out["insurance_on_file"] = ins
+    return _ok(**out)
 
 # ── office info (FAQ) ───────────────────────────────────────────────────────
 #

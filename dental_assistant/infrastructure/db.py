@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     status            TEXT    NOT NULL DEFAULT 'confirmed' CHECK(status IN ('confirmed', 'cancelled')),
     is_emergency      INTEGER NOT NULL DEFAULT 0,
     emergency_summary TEXT,
+    visit_notes       TEXT,
     created_at        TEXT    DEFAULT (datetime('now')),
+    modified_at       TEXT    DEFAULT (datetime('now')),
     FOREIGN KEY (patient_id) REFERENCES patients(id),
     FOREIGN KEY (slot_id)    REFERENCES available_slots(id)
 );
@@ -81,6 +83,12 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at      TEXT    DEFAULT (datetime('now')),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id
+ON messages(conversation_id, id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_role_id
+ON messages(conversation_id, role, id DESC);
 
 CREATE TABLE IF NOT EXISTS feedback (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,10 +110,14 @@ _SEED_PATIENTS = [
     ("James Wilson",   "555-010-1004", "2000-06-10", "Aetna PPO"),
 ]
 
-def _generate_slot_rows(weeks: int = 2) -> list[tuple[str, str, int]]:
-    """Mon–Sat, 8 AM – 6 PM in 30-min intervals for `weeks` weeks starting next Monday."""
+def _next_monday(today: date) -> date:
+    return today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+
+
+def _generate_slot_rows(weeks: int = 8, *, start_date: date | None = None) -> list[tuple[str, str, int]]:
+    """Mon–Sat, 8 AM – 6 PM in 30-min intervals for `weeks` weeks starting next Monday by default."""
     today = date.today()
-    monday = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+    monday = start_date or _next_monday(today)
     rows: list[tuple[str, str, int]] = []
     for week in range(weeks):
         for day_offset in range(6):  # Mon–Sat
@@ -127,14 +139,14 @@ def _seed_existing_appointments(conn: sqlite3.Connection) -> None:
     if len(slots) < 12:
         return
     bookings = [
-        (1, slots[2]["id"],  "cleaning"),
-        (2, slots[5]["id"],  "checkup"),
-        (3, slots[10]["id"], "cleaning"),
+        (1, slots[2]["id"], "cleaning", "Six-month recall; prefers morning appointments."),
+        (2, slots[5]["id"], "checkup", "Follow-up from prior exam; noted sensitivity lower left."),
+        (3, slots[10]["id"], "cleaning", "Stain concern on anterior teeth; chart photos if needed."),
     ]
-    for patient_id, slot_id, atype in bookings:
+    for patient_id, slot_id, atype, vnotes in bookings:
         conn.execute(
-            "INSERT INTO appointments (patient_id, slot_id, appointment_type) VALUES (?, ?, ?)",
-            (patient_id, slot_id, atype),
+            "INSERT INTO appointments (patient_id, slot_id, appointment_type, visit_notes) VALUES (?, ?, ?, ?)",
+            (patient_id, slot_id, atype, vnotes),
         )
         conn.execute("UPDATE available_slots SET is_available = 0 WHERE id = ?", (slot_id,))
 
@@ -151,18 +163,58 @@ def seed_db(conn: sqlite3.Connection) -> None:
     )
     conn.executemany(
         "INSERT INTO available_slots (date, time, is_available) VALUES (?, ?, ?)",
-        _generate_slot_rows(weeks=2),
+        _generate_slot_rows(weeks=8),
     )
     _seed_existing_appointments(conn)
+
+
+def _ensure_slot_horizon(conn: sqlite3.Connection, minimum_weeks: int = 8) -> None:
+    """Top up future availability so vague dates like 'next month' stay within the mock DB horizon."""
+    row = conn.execute("SELECT MAX(date) AS max_date FROM available_slots").fetchone()
+    max_date_raw = row["max_date"] if row else None
+    start = _next_monday(date.today())
+    target_max = start + timedelta(weeks=minimum_weeks, days=5)
+    if not max_date_raw:
+        rows = _generate_slot_rows(weeks=minimum_weeks, start_date=start)
+    else:
+        max_date = date.fromisoformat(str(max_date_raw))
+        if max_date >= target_max:
+            return
+        next_start = max_date + timedelta(days=1)
+        while next_start.weekday() != 0:
+            next_start += timedelta(days=1)
+        weeks = max(1, ((target_max - next_start).days // 7) + 1)
+        rows = _generate_slot_rows(weeks=weeks, start_date=next_start)
+    conn.executemany(
+        "INSERT OR IGNORE INTO available_slots (date, time, is_available) VALUES (?, ?, ?)",
+        rows,
+    )
 
 # ---------------------------------------------------------------------------
 # Init
 # ---------------------------------------------------------------------------
 
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Apply additive migrations for existing SQLite files."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(appointments)").fetchall()}
+    if not cols:
+        return
+    if "visit_notes" not in cols:
+        conn.execute("ALTER TABLE appointments ADD COLUMN visit_notes TEXT")
+    if "modified_at" not in cols:
+        conn.execute("ALTER TABLE appointments ADD COLUMN modified_at TEXT")
+        conn.execute(
+            "UPDATE appointments SET modified_at = COALESCE(created_at, datetime('now')) "
+            "WHERE modified_at IS NULL OR trim(modified_at) = ''"
+        )
+
+
 def init_db(path: str | None = None) -> None:
     with connection(path) as conn:
         conn.executescript(_SCHEMA)
+        _migrate_schema(conn)
         seed_db(conn)
+        _ensure_slot_horizon(conn)
 
 # ---------------------------------------------------------------------------
 # FAQ loader
