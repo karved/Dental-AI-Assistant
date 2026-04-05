@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Callable
 
 from dental_assistant.domain.constants import VALID_APPOINTMENT_TYPES
 from dental_assistant.domain.time_parse import slot_time_prefix
@@ -43,6 +43,33 @@ def _date_hints_from_message_and_fields(message: str, fields: dict[str, Any]) ->
     return list(dict.fromkeys(hints))
 
 
+def _resolve_offered_appointment_id(
+    valid_appointment_ids: list[int],
+    persisted_offered_ids: list[int],
+    fields: dict[str, Any],
+    user_message: str,
+    normalized_time_fn: Callable[[dict[str, Any], str], str | None],
+) -> int | None:
+    """Resolve which appointment the user means.
+
+    Explicit ids from the orchestrator work on the first turn. Ordinal phrases
+    ("first", "second") apply only after we've shown a list (persisted_offered_ids).
+    """
+    valid_set = set(valid_appointment_ids)
+    for key in ("selected_appointment_id", "appointment_id"):
+        aid = _parse_appt_id(fields.get(key))
+        if aid is not None and aid in valid_set:
+            return aid
+    if persisted_offered_ids:
+        offered_set = set(persisted_offered_ids)
+        aid = infer_offered_list_ordinal(
+            user_message, persisted_offered_ids, fields, normalized_time_fn,
+        )
+        if aid is not None and aid in offered_set and aid in valid_set:
+            return aid
+    return None
+
+
 def resolve_appointment_selection_full(
     appt_list: list[dict[str, Any]],
     fields: dict[str, Any],
@@ -55,12 +82,6 @@ def resolve_appointment_selection_full(
         return None, None
 
     ids = [a["id"] for a in appt_list]
-    id_set = set(ids)
-
-    for key in ("selected_appointment_id", "appointment_id"):
-        aid = _parse_appt_id(fields.get(key))
-        if aid is not None and aid in id_set:
-            return aid, None
 
     type_hint = _appointment_type_hint(fields, user_message)
     narrowed = [
@@ -72,13 +93,18 @@ def resolve_appointment_selection_full(
     work_ids = {a["id"] for a in work}
 
     if persisted_offered_ids:
-        offered_set = set(persisted_offered_ids)
         po = [i for i in persisted_offered_ids if i in work_ids]
         if not po:
             po = list(persisted_offered_ids)
-        aid = infer_offered_list_ordinal(user_message, po, fields, normalized_time_fn)
-        if aid is not None and aid in offered_set and aid in id_set:
-            return aid, None
+        offered_for_resolve = po
+    else:
+        offered_for_resolve = []
+
+    resolved = _resolve_offered_appointment_id(
+        ids, offered_for_resolve, fields, user_message, normalized_time_fn,
+    )
+    if resolved is not None:
+        return resolved, None
 
     time_h = normalized_time_fn(fields, user_message)
     date_hints = _date_hints_from_message_and_fields(user_message, fields)

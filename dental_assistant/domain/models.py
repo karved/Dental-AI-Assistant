@@ -34,6 +34,8 @@ class Appointment(BaseModel):
     status: str = "confirmed"
     is_emergency: bool = False
     emergency_summary: str | None = None
+    visit_notes: str | None = None
+    modified_at: str | None = None
 
 
 class Message(BaseModel):
@@ -110,7 +112,6 @@ class TurnState(BaseModel):
     collected_fields: dict[str, Any] = Field(default_factory=dict)
     orchestrator_output: dict[str, Any] = Field(default_factory=dict)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
-    prior_tool_results: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
     questions_to_ask: list[str] = Field(default_factory=list)
     rejected_slots: list[int] = Field(default_factory=list)
 

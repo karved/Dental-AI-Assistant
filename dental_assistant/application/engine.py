@@ -306,8 +306,7 @@ _APPOINTMENT_STATUS_PHRASE = re.compile(
 )
 
 _URGENT_CLINICAL_RE = re.compile(
-    r"ache",
-    r"\b(bleed|bleeding|\bblood\b|hemorrhag|"
+    r"ache|\b(bleed|bleeding|\bblood\b|hemorrhag|"
     r"severe\s+pain|excruciating|unbearable\s+pain|"
     r"swollen|swelling|abscess|"
     r"broken\s+tooth|cracked\s+tooth|knocked\s+out|avulsed|"
@@ -545,32 +544,6 @@ def _parse_slot_id(raw: Any) -> int | None:
         return int(raw)
     except (TypeError, ValueError):
         return None
-
-
-def _resolve_offered_appointment_id(
-    valid_appointment_ids: list[int],
-    persisted_offered_ids: list[int],
-    fields: dict[str, Any],
-    user_message: str,
-) -> int | None:
-    """Resolve which appointment the user means.
-
-    Explicit ids from the orchestrator work on the first turn. Ordinal phrases
-    ("first", "second") apply only after we've shown a list (persisted_offered_ids).
-    """
-    valid_set = set(valid_appointment_ids)
-    for key in ("selected_appointment_id", "appointment_id"):
-        aid = _parse_slot_id(fields.get(key))
-        if aid is not None and aid in valid_set:
-            return aid
-    if persisted_offered_ids:
-        offered_set = set(persisted_offered_ids)
-        aid = infer_offered_list_ordinal(
-            user_message, persisted_offered_ids, fields, _normalized_time_from_fields_or_message,
-        )
-        if aid is not None and aid in offered_set and aid in valid_set:
-            return aid
-    return None
 
 
 def _resolve_offered_slot(
