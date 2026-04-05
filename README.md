@@ -44,6 +44,20 @@ LLM fallback only when needed:
 This balances cost efficiency with robustness: most queries resolve deterministically
 at zero cost, and the LLM is invoked only for genuinely ambiguous inputs.
 
+### Known limitations / future improvements
+
+- **Multi-action conversations** — once a workflow completes (`is_complete`), the
+  current turn ends. If the user then says "I also need to reschedule another
+  appointment", a new conversation or an explicit state reset is needed. In
+  production this would be handled by detecting a new intent after completion and
+  resetting the workflow fields while preserving patient context.
+- **Session timeout** — there is no idle-timeout or session expiry. A production
+  system would expire conversations after inactivity and flush any pending
+  emergency logs as a safety net.
+- **Appointment selection** — when a patient has multiple active appointments,
+  the system currently acts on the first one. A production version would present
+  a disambiguation step ("Which appointment — Tuesday at 9 AM or Thursday at 2 PM?").
+
 ### Database
 
 SQLite is used for development. All SQL lives in a single `queries.py` data-access
