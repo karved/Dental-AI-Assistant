@@ -204,9 +204,9 @@ Set these environment variables in `.env` before running:
 
 ## Prioritization
 
-I prioritized the core booking flow first because it is the most load-bearing part of the user experience. From there, I added reschedule/cancel, emergency handling, and family booking because they have clear operational value and expose the main failure modes: wrong slot selection, lost state across turns, repetitive questioning, and unsafe handling of urgent cases.
+I prioritized the core booking flow first because it is the most load-bearing part of the user experience. From there, I added reschedule/cancel, emergency handling, and family booking because they have clear operational value and expose the main failure modes: wrong slot selection, lost state across turns, repetitive questioning, and unsafe handling of urgent cases. The focus for this take-home was more on the agentic framework, LLM design, overall architecture, core user-facing features, and a simple UI/UX than on building a fully scalable or future-proof platform from day one.
 
-I intentionally did not spend early time on dashboards, auth, outbound reminders, or richer admin tooling. For this take-home, correctness, safety, workflow continuity, and extensibility mattered more than breadth. The current design scales by adding new workflows to the same deterministic pattern rather than replacing the control model.
+I intentionally did not spend early time on database hardening, event-driven infrastructure, dashboards, auth, outbound reminders, or richer admin-side tooling. For this take-home, correctness, safety, workflow continuity, and extensibility mattered more than breadth. The current design scales by adding new workflows to the same deterministic pattern rather than replacing the control model.
 
 ## Repo Structure
 
