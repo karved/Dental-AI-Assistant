@@ -78,6 +78,16 @@ The system is stateful, but LLM context is intentionally small.
 
 This keeps prompts bounded, makes behavior more stable across long chats, and reduces the chance that older irrelevant context overrides current user intent.
 
+### Tone Handling
+
+Supported tones are `default`, `friendly`, `calm`, and `emergency`.
+
+- The orchestrator proposes an initial tone as part of its structured output
+- The deterministic engine can override that tone when workflow logic or safety signals require it
+- The conversation agent is the component that actually applies the tone in user-facing language
+
+In practice, this means tone is not owned purely by the conversation agent. The ideal control point is the current one: the orchestrator suggests, Python enforces, and the conversation agent expresses.
+
 ## Design + Stack
 
 - Deterministic routing over LLM-driven workflows  
@@ -102,14 +112,14 @@ This keeps prompts bounded, makes behavior more stable across long chats, and re
 
 ## Schema Summary
 
-| Table | Purpose |
-| --- | --- |
-| `patients` | Stores patient identity and profile fields such as phone, DOB, and insurance |
-| `available_slots` | Stores open schedule blocks as generic date/time slots |
-| `appointments` | Stores confirmed or cancelled bookings, appointment type, and visit notes |
-| `conversations` | Tracks chat sessions across turns |
-| `messages` | Stores user and assistant messages plus `metadata_json` for compact persisted turn state |
-| `feedback` | Stores per-conversation thumbs up/down feedback for future evaluation and quality monitoring |
+| Table | Key columns | Purpose |
+| --- | --- | --- |
+| `patients` | `id (PK)`, `name`, `phone`, `dob`, `insurance`, `created_at` | Stores patient identity and profile fields such as phone, DOB, and insurance |
+| `available_slots` | `id (PK)`, `date`, `time`, `duration_minutes`, `is_available` | Stores open schedule blocks as generic date/time slots |
+| `appointments` | `id (PK)`, `patient_id (FK)`, `slot_id (FK)`, `appointment_type`, `status`, `is_emergency`, `emergency_summary`, `visit_notes`, `created_at`, `modified_at` | Stores confirmed or cancelled bookings, appointment type, and visit notes |
+| `conversations` | `id (PK)`, `created_at` | Tracks chat sessions across turns |
+| `messages` | `id (PK)`, `conversation_id (FK)`, `role`, `content`, `metadata_json`, `created_at` | Stores user and assistant messages plus `metadata_json` for compact persisted turn state |
+| `feedback` | `id (PK)`, `conversation_id (FK)`, `rating`, `created_at` | Stores per-conversation thumbs up/down feedback for future evaluation and quality monitoring |
 
 Why this matters:
 
@@ -211,3 +221,69 @@ tests/              # deterministic test suite
 Makefile            # common dev commands
 README.md
 ```
+
+## Dry Run Example
+
+Example conversation:
+
+1. User: `I need a checkup next Friday morning. My name is James Wilson and my phone is 5550101004.`
+2. Assistant: `I found a few openings for Friday, April 10. Would 9:00 AM, 9:30 AM, or 10:00 AM PT work?`
+3. User: `9:30 works.`
+4. Assistant: `You’re booked for Friday, April 10 at 9:30 AM PT.`
+
+What happens internally:
+
+**Turn 1**
+
+- Input to orchestrator:
+  current user message + recent transcript window + compact prior state
+- Orchestrator output:
+
+```json
+{
+  "intent": "book_new",
+  "extracted_fields": {
+    "appointment_type": "checkup",
+    "date_preference": "next Friday morning",
+    "name": "James Wilson",
+    "phone": "5550101004"
+  },
+  "tone": "default"
+}
+```
+
+- Deterministic layer:
+  merges fields, resolves `date_preference` to `date_resolved`, checks readiness, looks up the patient, checks availability, filters morning slots, and stores the offered slot IDs
+- Tool calls:
+  `lookup_patient(phone)` -> existing patient found
+  `check_availability(date_filter/date_range, limit=...)` -> candidate slots returned
+- Input to conversation agent:
+  workflow + patient + collected fields + tool results + next question + tone hint
+- Persisted state:
+  compact `turn_state` snapshot with workflow, collected fields, offered slots, and completion flags
+
+**Turn 2**
+
+- User says `9:30 works`
+- Input to orchestrator:
+  current message + short recent transcript + prior structured state showing `awaiting_slot_selection`
+- Orchestrator output:
+
+```json
+{
+  "intent": "book_new",
+  "extracted_fields": {
+    "selected_time": "9:30"
+  },
+  "tone": "default"
+}
+```
+
+- Deterministic layer:
+  resolves the selected time against the previously offered slot list, books the appointment, marks the workflow complete, and clears pending offered-slot state
+- Tool call:
+  `book_appointment(patient_id, slot_id, appointment_type)`
+- Conversation agent:
+  converts the structured success payload into the final confirmation message using the final tone chosen by the workflow layer
+
+This is the core pattern across workflows: LLM #1 extracts, Python decides, tools execute, LLM #2 phrases, and SQLite persists enough state for the next turn.
