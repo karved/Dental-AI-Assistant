@@ -1,10 +1,10 @@
 # Dental Practice Conversational AI Chatbot
 
-A deterministic, workflow-driven chatbot for dental scheduling, patient support, and emergency intake.
+A **deterministic, workflow-driven** chatbot for dental scheduling, patient support, and emergency intake.
 
 ## Overview
 
-This project is a conversational assistant for a dental practice that handles scheduling, urgent intake, and common office questions. It uses LLMs for extraction and response generation, while Python owns workflow control, tool execution, and state transitions.
+This project is a conversational assistant for a dental practice that handles scheduling, urgent intake, and common office questions. It uses LLMs for extraction and response generation, while **Python owns workflow control, tool execution, and state transitions**.
 
 ## Demo Features
 
@@ -16,7 +16,7 @@ This project is a conversational assistant for a dental practice that handles sc
 
 ## Architecture
 
-The application uses a two-LLM pattern with a deterministic workflow engine in the middle.
+The application uses a **two-LLM pattern** with a deterministic workflow engine in the middle.
 
 ```text
 User / UI / API
@@ -50,23 +50,23 @@ Why this split:
 
 - The orchestrator does classification and extraction only
 - The conversation agent does phrasing only
-- Python owns all side effects and decisions
+- **Python owns all side effects and decisions**
 
 I intentionally did not use a full agent framework for this version. For the scope of the take-home, explicit workflow code made the scheduling state machine easier to test, inspect, and explain than hiding control flow inside autonomous tool loops.
 
 ### REST Chat Turn Model
 
-The chat experience is implemented over REST, not WebSockets. Each user message is a separate `POST /chat` request, and the returned `conversation_id` is passed back on the next turn.
+The chat experience is implemented over **REST, not WebSockets**. Each user message is a separate `POST /chat` request, and the returned `conversation_id` is passed back on the next turn.
 
 This gives the UI a chat-like feel without keeping a long-lived socket open. On every request, the backend loads the latest compact workflow state and recent transcript from SQLite, processes the new message through the orchestrator, deterministic workflow layer, tools, and conversation agent, then persists the updated state for the next request.
 
-For this take-home, the endpoint intentionally stays simple: no RBAC, user accounts, tenant boundaries, streaming transport, or admin-side permissions layer. A production version would likely add authenticated users, RBAC/row-level authorization, scoped conversation access, rate limiting, audit logs, and possibly WebSocket or SSE streaming if partial-token responses or real-time operator handoff became important.
+For this take-home, the endpoint intentionally stays simple: **no RBAC, user accounts, tenant boundaries, streaming transport, or admin-side permissions layer**. A production version would likely add authenticated users, RBAC/row-level authorization, scoped conversation access, rate limiting, audit logs, and possibly WebSocket or SSE streaming if partial-token responses or real-time operator handoff became important.
 
 ### Orchestration Tradeoff
 
-I considered whether a workflow framework such as LangGraph or Temporal would be appropriate because the assistant state is persisted and replayable across turns. I kept orchestration in deterministic Python for this prototype because the core flows are still small and domain-specific: classify intent, merge fields, check readiness, run tools, ask the next question, and persist state.
+I considered whether a workflow framework such as **LangGraph or Temporal** would be appropriate because the assistant state is persisted and replayable across turns. I kept orchestration in deterministic Python for this prototype because the core flows are still small and domain-specific: classify intent, merge fields, check readiness, run tools, ask the next question, and persist state.
 
-In a production version, I would consider LangGraph if the conversational graph grew into many reusable agent nodes or needed framework-level checkpointing. I would consider Temporal for durable background workflows rather than the live chat turn itself: reminder delivery, staff escalation SLAs, human review queues, async insurance checks, retries across external systems, and other long-running operations that need stronger guarantees.
+In a production version, I would consider LangGraph if the conversational graph grew into many reusable agent nodes or needed framework-level checkpointing. I would consider Temporal for **durable background workflows** rather than the live chat turn itself: reminder delivery, staff escalation SLAs, human review queues, **async insurance checks**, retries across external systems, and other long-running operations that need stronger guarantees.
 
 ### Stateful vs Stateless
 
@@ -138,7 +138,7 @@ In practice, this means tone is not owned purely by the conversation agent. The 
 
 Why this matters:
 
-- `messages.metadata_json` is the bridge between stateless LLM calls and stateful workflows
+- `messages.metadata_json` is the **bridge between stateless LLM calls and stateful workflows**
 - `feedback` creates a clean path for offline evaluation, regression analysis, and model iteration
 - `appointments` plus `messages` make it possible to analyze not just what the assistant said, but what it actually caused in the scheduling system
 
@@ -221,9 +221,9 @@ Set these environment variables in `.env` before running:
 
 I prioritized the core booking flow first because it is the most load-bearing part of the user experience. From there, I added reschedule/cancel, emergency handling, and family booking because they have clear operational value and expose the main failure modes: wrong slot selection, lost state across turns, repetitive questioning, and unsafe handling of urgent cases.  
 
-The focus for this take-home was more on the agentic workflow design, LLM architecture, core user-facing features, and a simple UI/UX than on building a fully scalable or future-proof platform from day one.
+The focus for this take-home was more on the **agentic workflow design, LLM architecture, core user-facing features, and a simple UI/UX** than on building a fully scalable or future-proof platform from day one.
 
-I intentionally did not spend early time on database hardening, event-driven infrastructure, dashboards, auth, outbound reminders, or richer admin-side tooling. Those are important in production, especially for reminders, admin review, and multi-user access control, but for this prototype correctness, safety, workflow continuity, and extensibility mattered more than breadth. The current design scales by adding new workflows to the same deterministic pattern rather than replacing the control model.
+I intentionally did not spend early time on database hardening, event-driven infrastructure, dashboards, auth, outbound reminders, or richer admin-side tooling. Those are important in production, especially for reminders, admin review, and multi-user access control, but for this prototype **correctness, safety, workflow continuity, and extensibility mattered more than breadth**. The current design scales by adding new workflows to the same deterministic pattern rather than replacing the control model.
 
 ## Repo Structure
 
@@ -303,4 +303,4 @@ What happens internally:
 - Conversation agent:
   converts the structured success payload into the final confirmation message using the final tone chosen by the workflow layer
 
-This is the core pattern across workflows: LLM #1 extracts, Python decides, tools execute, LLM #2 phrases, and SQLite persists enough state for the next turn.
+This is the core pattern across workflows: **LLM #1 extracts, Python decides, tools execute, LLM #2 phrases**, and SQLite persists enough state for the next turn.
