@@ -54,6 +54,14 @@ Why this split:
 
 I intentionally did not use an agent framework. For scheduling systems, explicit workflow code is easier to test, safer to reason about, and less brittle than autonomous tool loops.
 
+### REST Chat Turn Model
+
+The chat experience is implemented over REST, not WebSockets. Each user message is a separate `POST /chat` request, and the returned `conversation_id` is passed back on the next turn.
+
+This gives the UI a chat-like feel without keeping a long-lived socket open. On every request, the backend loads the latest compact workflow state and recent transcript from SQLite, processes the new message through the orchestrator, deterministic workflow layer, tools, and conversation agent, then persists the updated state for the next request.
+
+For this take-home, the endpoint intentionally stays simple: no RBAC, user accounts, tenant boundaries, streaming transport, or admin-side permissions layer. A production version would likely add authenticated users, RBAC/row-level authorization, scoped conversation access, rate limiting, audit logs, and possibly WebSocket or SSE streaming if partial-token responses or real-time operator handoff became important.
+
 ### Stateful vs Stateless
 
 Stateful parts:
